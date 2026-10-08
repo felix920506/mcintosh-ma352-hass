@@ -1,0 +1,71 @@
+# McIntosh MA352 for Home Assistant
+
+Local-push Home Assistant integration for the **McIntosh MA352** integrated amplifier over its RS232 control port. It works with a local serial adapter or with a network serial port server.
+
+## Features
+
+| Entity | Description |
+| --- | --- |
+| Media player | Power, volume (set/step), mute, input selection (BAL 1/2, UNBAL 1–3, MM PHONO) |
+| Switches | Output 1, Output 2, Equalizer, Mono, Headphone HXD\*, Meter lights, Tube lights, Display auto off |
+| Numbers | Balance (−50…+50), Input trim (−6…+6 dB in 0.5 dB steps) |
+| Selects | Display brightness (25–100 %), Phono capacitance\*\* (50–800 pF) |
+| Binary sensor | Headphones plugged in |
+
+\* Only available while headphones are plugged in. \*\* Only available while MM PHONO is the selected input.
+
+Status changes made on the amplifier (front panel, remote, headphones) are pushed to Home Assistant instantly. A full status query every 60 s also serves as a connection keepalive. If the link is lost, the integration reconnects automatically.
+
+Optional **maximum volume** limit (Settings → Devices & services → McIntosh MA352 → Configure). It caps volume commands sent from Home Assistant. The front panel and remote are not affected.
+
+## Installation (HACS)
+
+1. HACS → ⋮ → *Custom repositories* → add `https://github.com/felix920506/mcintosh-ma352-hass` as an **Integration**.
+2. Install **McIntosh MA352** and restart Home Assistant.
+3. Settings → Devices & services → *Add integration* → **McIntosh MA352**.
+
+Manual install: copy `custom_components/mcintosh_ma352` into your `config/custom_components` directory.
+
+## Connection
+
+The MA352 uses a 3.5 mm TRS jack (Tip = TX, Ring = RX, Sleeve = GND) at 8N1, no flow control. The baud rate is set in the amplifier's setup menu (default **115200**).
+
+When adding the integration, either choose a detected serial port or type a URL:
+
+| Connection | Example |
+| --- | --- |
+| Local USB/RS232 adapter | `/dev/serial/by-id/usb-FTDI_...-if00-port0` (preferred over `/dev/ttyUSB0`, which can change) |
+| Raw TCP serial server | `socket://192.168.1.50:4001` |
+| RFC 2217 serial server | `rfc2217://192.168.1.50:4001` |
+
+For a raw TCP (`socket://`) server, set the baud rate on the server itself to match the amplifier. Many serial servers accept only one TCP client at a time, so close other tools before connecting.
+
+The port can be changed later with **Reconfigure** without losing entities.
+
+## Protocol notes
+
+These are observations from a unit running firmware 1.07 that differ from or add to *MA352 External Control Rev A*:
+
+- Meter lights use command `TML`, not `TTM` as documented.
+- `TDS` (undocumented) controls **Display auto off**.
+- After power-on the unit is unresponsive for about 16 s while it boots. Commands sent during this time are **queued, not dropped**, and all run once boot completes. The integration therefore holds back commands until the amplifier answers a single probe, so volume steps can't pile up. This applies whether the amp was turned on from Home Assistant, the front panel or the remote.
+- Power-on replies with a full status dump. Mute is cleared on power-on.
+- Relative commands (`VOL U`, `TBA L`, …) are acknowledged with the resulting absolute value.
+- In standby, `QRY` returns only product info and `(PWR 0)`. Every other command except `PWR` returns `ERROR - Invalid Command`.
+
+## Development
+
+```bash
+pip install -r requirements_test.txt
+pytest
+```
+
+Tests run against an emulator of the amplifier (`tests/emulator.py`) over a local TCP socket. You can also run it standalone (`python -m tests.emulator 4001`) and point a dev Home Assistant instance at `socket://127.0.0.1:4001`.
+
+Optional tests against real hardware (low-risk, reversible changes only; volume is never raised above its starting level):
+
+```bash
+MA352_LIVE_URL=socket://host:port pytest tests/test_live.py -s
+MA352_LIVE_URL=... MA352_LIVE_POWER=1 pytest tests/test_live.py -s   # includes a power cycle
+MA352_LIVE_URL=... MA352_LIVE_WATCH=120 pytest tests/test_live.py -s # log changes while you operate the amp
+```
