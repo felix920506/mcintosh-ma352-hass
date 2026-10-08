@@ -1,0 +1,14 @@
+{
+  "domain": "mcintosh_ma352",
+  "name": "McIntosh MA352",
+  "codeowners": ["@felix920506"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/felix920506/mcintosh-ma352-hass",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/felix920506/mcintosh-ma352-hass/issues",
+  "loggers": ["custom_components.mcintosh_ma352"],
+  "requirements": ["pyserial-asyncio-fast>=0.16"],
+  "version": "0.1.0"
+}
