@@ -34,10 +34,10 @@ class MA352HeadphonesSensor(MA352Entity, BinarySensorEntity):
     @property
     def available(self) -> bool:
         """Unavailable on units without a headphone jack (HPS 2)."""
-        return super().available and self.value(CMD_HEADPHONES) in (0, 1)
+        return super().available and self.raw(CMD_HEADPHONES) in (0, 1)
 
     @property
     def is_on(self) -> bool | None:
         """Return True when headphones are plugged in."""
-        value = self.value(CMD_HEADPHONES)
+        value = self.raw(CMD_HEADPHONES)
         return None if value is None else value == 1

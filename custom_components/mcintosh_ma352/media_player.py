@@ -64,19 +64,19 @@ class MA352MediaPlayer(MA352Entity, MediaPlayerEntity):
     @property
     def volume_level(self) -> float | None:
         """Volume 0..1."""
-        volume = self.value(CMD_VOLUME)
+        volume = self.raw(CMD_VOLUME)
         return volume / 100 if self._on and volume is not None else None
 
     @property
     def is_volume_muted(self) -> bool | None:
         """Mute state."""
-        mute = self.value(CMD_MUTE)
+        mute = self.raw(CMD_MUTE)
         return mute == 1 if self._on and mute is not None else None
 
     @property
     def source(self) -> str | None:
         """Current input."""
-        return INPUTS.get(self.value(CMD_INPUT)) if self._on else None
+        return INPUTS.get(self.raw(CMD_INPUT)) if self._on else None
 
     @property
     def extra_state_attributes(self) -> dict[str, int]:
@@ -98,7 +98,7 @@ class MA352MediaPlayer(MA352Entity, MediaPlayerEntity):
 
     async def async_volume_up(self) -> None:
         """Volume up 1%, unless that exceeds the configured maximum."""
-        current = self.value(CMD_VOLUME)
+        current = self.raw(CMD_VOLUME)
         if current is not None and current >= self._max_volume:
             return
         await self.hub.async_command(CMD_VOLUME, "U")

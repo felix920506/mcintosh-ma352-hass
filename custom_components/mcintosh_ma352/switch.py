@@ -94,13 +94,13 @@ class MA352Switch(MA352Entity, SwitchEntity):
         if not super().available:
             return False
         if self.entity_description.needs_headphones:
-            return self.value(CMD_HEADPHONES) == 1
-        return self.value(self.entity_description.command) is not None
+            return self.raw(CMD_HEADPHONES) == 1
+        return self.raw(self.entity_description.command) is not None
 
     @property
     def is_on(self) -> bool | None:
         """Return the state."""
-        value = self.value(self.entity_description.command)
+        value = self.raw(self.entity_description.command)
         return None if value is None else value == 1
 
     async def async_turn_on(self, **kwargs) -> None:

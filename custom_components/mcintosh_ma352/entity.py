@@ -38,7 +38,7 @@ class MA352Entity(Entity):
             return False
         return not self._requires_power or self.hub.client.state.power
 
-    def value(self, name: str) -> int | None:
+    def raw(self, name: str) -> int | None:
         """Return a raw state value."""
         return self.hub.client.state.get(name)
 

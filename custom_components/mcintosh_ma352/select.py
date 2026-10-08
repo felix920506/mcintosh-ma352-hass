@@ -80,15 +80,15 @@ class MA352Select(MA352Entity, SelectEntity):
         """Return availability."""
         if not super().available:
             return False
-        if self.entity_description.needs_phono and self.value(CMD_INPUT) != PHONO_INPUT:
+        if self.entity_description.needs_phono and self.raw(CMD_INPUT) != PHONO_INPUT:
             return False
-        return self.value(self.entity_description.command) is not None
+        return self.raw(self.entity_description.command) is not None
 
     @property
     def current_option(self) -> str | None:
         """Return the selected option."""
         return self.entity_description.values.get(
-            self.value(self.entity_description.command)
+            self.raw(self.entity_description.command)
         )
 
     async def async_select_option(self, option: str) -> None:

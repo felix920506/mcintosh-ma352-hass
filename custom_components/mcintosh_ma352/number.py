@@ -73,12 +73,12 @@ class MA352Number(MA352Entity, NumberEntity):
     @property
     def available(self) -> bool:
         """Return availability."""
-        return super().available and self.value(self.entity_description.command) is not None
+        return super().available and self.raw(self.entity_description.command) is not None
 
     @property
     def native_value(self) -> float | None:
         """Return the value."""
-        raw = self.value(self.entity_description.command)
+        raw = self.raw(self.entity_description.command)
         return None if raw is None else raw * self.entity_description.scale
 
     async def async_set_native_value(self, value: float) -> None:
