@@ -10,8 +10,9 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_call_later
 
-from .const import DOMAIN, POLL_INTERVAL, POWER_ON_REFRESH_DELAY, RECONNECT_INTERVAL
+from .const import DOMAIN, INPUT_REFRESH_DELAY, POLL_INTERVAL, RECONNECT_INTERVAL
 from .ma352 import (
+    BOOT_TIMEOUT,
     CMD_INPUT,
     CMD_POWER,
     CMD_STATUS_ENABLE,
@@ -35,6 +36,7 @@ class MA352Hub:
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._refresh_unsub: CALLBACK_TYPE | None = None
+        self._boot_task: asyncio.Task | None = None
         self._last_power: int | None = None
         self._last_input: int | None = None
         self._unsub_client = [
@@ -66,9 +68,10 @@ class MA352Hub:
         if self._refresh_unsub:
             self._refresh_unsub()
             self._refresh_unsub = None
-        if self._task:
-            self._task.cancel()
-            self._task = None
+        for task in (self._task, self._boot_task):
+            if task:
+                task.cancel()
+        self._task = self._boot_task = None
         for unsub in self._unsub_client:
             unsub()
         await self.client.disconnect()
@@ -81,7 +84,7 @@ class MA352Hub:
                 except TimeoutError:
                     pass
                 self._wake.clear()
-                if not self.client.connected:
+                if not self.client.connected or self._boot_task:
                     continue
                 try:
                     await self.async_refresh()
@@ -109,6 +112,9 @@ class MA352Hub:
     # ------------------------------------------------------------ commands
     async def async_command(self, name: str, param: str | int | None = None) -> None:
         """Send a command, translating errors for Home Assistant."""
+        if self._boot_task:
+            # Don't feed the amplifier's boot-time queue (see below).
+            await asyncio.shield(self._boot_task)
         try:
             await self.client.command(name, param)
         except MA352CommandError as err:
@@ -140,14 +146,38 @@ class MA352Hub:
     def _on_state(self) -> None:
         values = self.client.state.values
         power, inp = values.get(CMD_POWER), values.get(CMD_INPUT)
-        if (self._last_power == 0 and power == 1) or (
-            self._last_input is not None and inp != self._last_input
-        ):
-            # After power-on, or an input change (trim/EQ/phono are per
-            # input), read back everything once the unit has settled.
+        if self._last_power == 0 and power == 1:
+            # Powered on (from HA, front panel or remote).
+            self._start_boot_wait()
+        elif self._last_input is not None and inp != self._last_input:
+            # Trim/EQ settings are per input; read them back.
             self._schedule_refresh()
         self._last_power, self._last_input = power, inp
         self._fire()
+
+    def _start_boot_wait(self) -> None:
+        if self._boot_task is None:
+            self._boot_task = self.hass.async_create_background_task(
+                self._async_wait_for_boot(), f"{DOMAIN} boot wait"
+            )
+
+    async def _async_wait_for_boot(self) -> None:
+        """Hold the command queue until the amplifier has finished booting.
+
+        The amplifier queues commands received while booting and runs them
+        all afterwards. A single read-only probe answered after boot avoids
+        stacking up (timed out, then retried) commands such as volume steps.
+        Other commands wait on the client lock meanwhile.
+        """
+        try:
+            await self.client.command(CMD_POWER, timeout=BOOT_TIMEOUT)
+            _LOGGER.debug("MA352 finished booting")
+            await self.async_refresh()
+        except MA352Error as err:
+            _LOGGER.warning("MA352 did not come back after power-on: %s", err)
+            await self.client.disconnect()
+        finally:
+            self._boot_task = None
 
     def _schedule_refresh(self) -> None:
         if self._refresh_unsub:
@@ -158,6 +188,4 @@ class MA352Hub:
             self._refresh_unsub = None
             self._wake.set()
 
-        self._refresh_unsub = async_call_later(
-            self.hass, POWER_ON_REFRESH_DELAY, _refresh
-        )
+        self._refresh_unsub = async_call_later(self.hass, INPUT_REFRESH_DELAY, _refresh)

@@ -219,3 +219,37 @@ async def test_reconnect(hass: HomeAssistant, emulator: MA352Emulator) -> None:
     await _wait_for(hass, lambda: hass.states.get(MP).state == STATE_UNAVAILABLE)
     await _wait_for(hass, lambda: hass.states.get(MP).state == STATE_ON)
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_commands_wait_for_boot(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Commands issued while the amp boots are held back, not queued on the amp."""
+    emulator.state["PWR"] = 0
+    emulator.boot_time = 0.5
+    entry = await _setup(hass, emulator)
+    assert hass.states.get(MP).state == STATE_OFF
+
+    await hass.services.async_call(MP_DOMAIN, "turn_on", {ATTR_ENTITY_ID: MP}, blocking=True)
+    assert hass.states.get(MP).state == STATE_ON
+    emulator.received.clear()
+    # Would time out (0.5 s in tests) if sent straight into the boot window.
+    await hass.services.async_call(MP_DOMAIN, "volume_up", {ATTR_ENTITY_ID: MP}, blocking=True)
+    await hass.services.async_call(MP_DOMAIN, "volume_up", {ATTR_ENTITY_ID: MP}, blocking=True)
+    assert emulator.state["VOL"] == 24
+    # Only the single boot probe was sent before the volume commands.
+    assert emulator.received[:2] == ["PWR", "QRY"]
+    assert emulator.received.count("VOL U") == 2
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.24
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_front_panel_power_on(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Power-on from the remote is picked up and state re-read after boot."""
+    emulator.state["PWR"] = 0
+    entry = await _setup(hass, emulator)
+    tube = "switch.mcintosh_ma352_tube_lights"
+    assert hass.states.get(tube).state == STATE_UNAVAILABLE
+    emulator.state["TTL"] = 0  # changed while we couldn't see it
+    emulator.front_panel("PWR", 1)
+    await _wait_for(hass, lambda: hass.states.get(tube).state == STATE_OFF)
+    assert hass.states.get(MP).state == STATE_ON
+    await hass.config_entries.async_unload(entry.entry_id)

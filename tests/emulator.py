@@ -75,6 +75,9 @@ class MA352Emulator:
         self.disabled_inputs: set[int] = set()
         self.received: list[str] = []
         self.mute_responses = False
+        # Seconds the unit is unresponsive after power-on (real unit: ~16).
+        self.boot_time = 0.0
+        self._boot_queue: list[str] | None = None
         self._writers: list[asyncio.StreamWriter] = []
         self._server: asyncio.Server | None = None
         self.port = 0
@@ -120,7 +123,9 @@ class MA352Emulator:
                 buf += data.decode(errors="ignore")
                 for match in _FRAME.finditer(buf):
                     self.received.append(match.group(1))
-                    if not self.mute_responses:
+                    if self._boot_queue is not None:
+                        self._boot_queue.append(match.group(1))
+                    elif not self.mute_responses:
                         self.send(*self.handle(match.group(1)))
                 buf = buf[buf.rfind(")") + 1 :] if ")" in buf else buf
         finally:
@@ -163,8 +168,21 @@ class MA352Emulator:
                 return [ERR_PAR]
         if name == "INP" and value in self.disabled_inputs:
             return [ERR_PAR]
+        if name == "PWR" and value == 1 and self.state["PWR"] == 0:
+            # Real unit: answers with a full dump, then boots while queueing
+            # (not dropping) commands.
+            self.state["PWR"] = 1
+            if self.boot_time:
+                self._boot_queue = []
+                asyncio.get_running_loop().call_later(self.boot_time, self._booted)
+            return self.handle("QRY")
         self.state[name] = value
         return [f"{name} {value}"]
+
+    def _booted(self) -> None:
+        queue, self._boot_queue = self._boot_queue or [], None
+        for payload in queue:
+            self.send(*self.handle(payload))
 
 
 async def _main(port: int) -> None:

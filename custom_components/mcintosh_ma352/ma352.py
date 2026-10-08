@@ -24,6 +24,9 @@ DEFAULT_BAUDRATE = 115200
 BAUDRATES = [9600, 19200, 38400, 57600, 115200]
 
 COMMAND_TIMEOUT = 2.0
+# After power-on the unit is unresponsive for ~16 s. It does not drop
+# commands sent meanwhile; it queues and executes them once booted.
+BOOT_TIMEOUT = 45.0
 QUERY_TIMEOUT = 4.0
 # Quiet period that marks the end of a multi-frame (QRY) response.
 QUERY_SETTLE = 0.4
@@ -268,7 +271,12 @@ class MA352:
             raise MA352ConnectionError(str(err)) from err
 
     # ------------------------------------------------------------ commands
-    async def command(self, name: str, param: str | int | None = None) -> int | None:
+    async def command(
+        self,
+        name: str,
+        param: str | int | None = None,
+        timeout: float | None = None,
+    ) -> int | None:
         """Send a command and return the value from the acknowledgement."""
         payload = f"({name})" if param is None else f"({name} {param})"
         async with self._lock:
@@ -277,7 +285,7 @@ class MA352:
             self._pending = (name, future)
             try:
                 await self._write(payload)
-                frame = await asyncio.wait_for(future, COMMAND_TIMEOUT)
+                frame = await asyncio.wait_for(future, timeout or COMMAND_TIMEOUT)
             except TimeoutError as err:
                 raise MA352TimeoutError(f"No response to {payload}") from err
             finally:

@@ -15,5 +15,5 @@ DEFAULT_MAX_VOLUME: Final = 100
 # Full status poll; also acts as a keepalive for network serial servers.
 POLL_INTERVAL: Final = 60
 RECONNECT_INTERVAL: Final = 10
-# Time the amplifier needs after power-on before it reports complete status.
-POWER_ON_REFRESH_DELAY: Final = 3
+# Delay before re-reading state after an input change (trims are per input).
+INPUT_REFRESH_DELAY: Final = 1

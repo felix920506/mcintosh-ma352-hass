@@ -28,7 +28,7 @@ def fast_timers():
     """Shorten reconnect/poll timers."""
     with (
         patch("custom_components.mcintosh_ma352.hub.RECONNECT_INTERVAL", 0.05),
-        patch("custom_components.mcintosh_ma352.hub.POWER_ON_REFRESH_DELAY", 0),
+        patch("custom_components.mcintosh_ma352.hub.INPUT_REFRESH_DELAY", 0),
         patch("custom_components.mcintosh_ma352.ma352.QUERY_SETTLE", 0.1),
         patch("custom_components.mcintosh_ma352.ma352.COMMAND_TIMEOUT", 0.5),
         patch("custom_components.mcintosh_ma352.ma352.QUERY_TIMEOUT", 1),
