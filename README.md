@@ -49,7 +49,8 @@ These are observations from a unit running firmware 1.07 that differ from or add
 - Meter lights use command `TML`, not `TTM` as documented.
 - `TDS` (undocumented) controls **Display auto off**.
 - After power-on the unit is unresponsive for about 16 s while it boots. Commands sent during this time are **queued, not dropped**, and all run once boot completes. The integration therefore holds back commands until the amplifier answers a single probe, so volume steps can't pile up. This applies whether the amp was turned on from Home Assistant, the front panel or the remote.
-- Power-on replies with a full status dump. Mute is cleared on power-on.
+- Front panel/remote volume changes made during that boot window are ignored by the unit (unlike RS232 commands, which are queued).
+- Power-on (from RS232, the power button or the remote) pushes a full status dump. Mute is cleared on power-on.
 - Relative commands (`VOL U`, `TBA L`, …) are acknowledged with the resulting absolute value.
 - In standby, `QRY` returns only product info and `(PWR 0)`. Every other command except `PWR` returns `ERROR - Invalid Command`.
 
