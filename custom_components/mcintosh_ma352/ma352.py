@@ -30,6 +30,14 @@ BOOT_TIMEOUT = 45.0
 QUERY_TIMEOUT = 4.0
 # Quiet period that marks the end of a multi-frame (QRY) response.
 QUERY_SETTLE = 0.4
+# Max duration of a status dump (QRY reply or power-on), starting at (MA352).
+DUMP_WINDOW = 1.5
+# Unsolicited volume changes of at least this many steps are passthrough
+# transitions; the knob and remote report every single step.
+PASSTHROUGH_JUMP = 2
+# Volume reported in passthrough on the unit tested (FW 1.07); not settable
+# in the setup menu.
+PASSTHROUGH_LEVEL = 69
 
 INPUTS: dict[int, str] = {
     1: "BAL 1",
@@ -104,6 +112,8 @@ class MA352State:
     """Last known state; values are the raw integers reported by the unit."""
 
     values: dict[str, int] = field(default_factory=dict)
+    # Inferred: the unit has no passthrough status (see MA352._track_passthrough).
+    passthrough: bool = False
 
     def get(self, name: str) -> int | None:
         """Return a raw value."""
@@ -150,6 +160,10 @@ class MA352:
         self._pending: tuple[str, asyncio.Future[str]] | None = None
         self._query_state_seen = False
         self._rx_event = asyncio.Event()
+        self._dump_until = 0.0
+        # Volume the unit reports while in passthrough.
+        self.passthrough_level = PASSTHROUGH_LEVEL
+        self._passthrough_known = False
 
     # ------------------------------------------------------------------ io
     @property
@@ -200,6 +214,7 @@ class MA352:
             except Exception:  # noqa: BLE001
                 pass
         self._reader = self._writer = None
+        self._passthrough_known = False
         if self._pending and not self._pending[1].done():
             self._pending[1].set_exception(MA352ConnectionError("Connection lost"))
         if was_connected:
@@ -242,6 +257,7 @@ class MA352:
             return
         if frame.startswith("MA"):
             self.info.model = frame
+            self._dump_until = asyncio.get_running_loop().time() + DUMP_WINDOW
             return
 
         match = _STATE_RE.match(frame)
@@ -252,14 +268,60 @@ class MA352:
         changed = False
         if value is not None:
             self._query_state_seen = True
-            changed = self.state.values.get(name) != int(value)
+            old = self.state.values.get(name)
+            changed = old != int(value)
             self.state.values[name] = int(value)
+            changed |= self._track_passthrough(name, old, int(value))
+            if name == CMD_HEADPHONES or (name == CMD_POWER and value == "0"):
+                self._dump_until = 0.0  # last frame of a dump
         # Resolve the pending command before notifying: a listener may send a
         # new command (eager tasks) that must not be answered by this frame.
         if self._pending and self._pending[0] == name and not self._pending[1].done():
             self._pending[1].set_result(frame)
         if changed:
             self._notify()
+
+    def _track_passthrough(self, name: str, old: int | None, new: int) -> bool:
+        """Infer passthrough mode; return True if it changed.
+
+        In passthrough (enabled e.g. by a 12 V trigger) the unit reports a
+        fixed volume (69 % on the unit tested) and ignores the knob/remote.
+        Entering and leaving push a single volume frame that jumps straight
+        to that level and back, whereas the knob and remote push one frame
+        per 1 % step. There is no explicit status, so an unsolicited jump to
+        the level means passthrough, a jump away from it means normal mode;
+        after connecting or a power-on, passthrough is assumed if the volume
+        equals the level.
+        """
+        before = self.state.passthrough
+        if name == CMD_POWER:
+            if new == 0:
+                self.state.passthrough = False
+            if new != old:
+                self._passthrough_known = False
+        elif name == CMD_VOLUME:
+            in_dump = asyncio.get_running_loop().time() < self._dump_until
+            solicited = self._pending is not None and self._pending[0] == CMD_VOLUME
+            level = self.passthrough_level
+            if in_dump:
+                # Full status: decide after connect/power-on; otherwise only
+                # correct a passthrough state whose exit was missed.
+                if not self._passthrough_known:
+                    self.state.passthrough = new == level
+                    self._passthrough_known = True
+                elif self.state.passthrough and new != level:
+                    self.state.passthrough = False
+            elif not solicited and old is not None and abs(new - old) >= PASSTHROUGH_JUMP:
+                self._passthrough_known = True
+                if new == level:
+                    self.state.passthrough = True
+                elif old == level or self.state.passthrough:
+                    self.state.passthrough = False
+                _LOGGER.debug(
+                    "Passthrough %s (volume %s -> %s)",
+                    "on" if self.state.passthrough else "off", old, new,
+                )
+        return before != self.state.passthrough
 
     async def _write(self, payload: str) -> None:
         if not self.connected:

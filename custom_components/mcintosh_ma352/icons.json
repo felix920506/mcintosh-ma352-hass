@@ -1,25 +1,60 @@
 {
   "entity": {
     "binary_sensor": {
-      "headphones": { "default": "mdi:headphones-off", "state": { "on": "mdi:headphones" } }
+      "headphones": {
+        "default": "mdi:headphones-off",
+        "state": {
+          "on": "mdi:headphones"
+        }
+      },
+      "passthrough": {
+        "default": "mdi:amplifier-off",
+        "state": {
+          "on": "mdi:amplifier"
+        }
+      }
     },
     "number": {
-      "balance": { "default": "mdi:scale-balance" },
-      "input_trim": { "default": "mdi:tune-vertical" }
+      "balance": {
+        "default": "mdi:scale-balance"
+      },
+      "input_trim": {
+        "default": "mdi:tune-vertical"
+      }
     },
     "select": {
-      "display_brightness": { "default": "mdi:brightness-6" },
-      "phono_capacitance": { "default": "mdi:album" }
+      "display_brightness": {
+        "default": "mdi:brightness-6"
+      },
+      "phono_capacitance": {
+        "default": "mdi:album"
+      }
     },
     "switch": {
-      "output_1": { "default": "mdi:speaker" },
-      "output_2": { "default": "mdi:speaker" },
-      "equalizer": { "default": "mdi:equalizer" },
-      "mono": { "default": "mdi:surround-sound-2-0" },
-      "headphone_hxd": { "default": "mdi:headphones-settings" },
-      "meter_lights": { "default": "mdi:gauge" },
-      "tube_lights": { "default": "mdi:lightbulb" },
-      "display_auto_off": { "default": "mdi:monitor-off" }
+      "output_1": {
+        "default": "mdi:speaker"
+      },
+      "output_2": {
+        "default": "mdi:speaker"
+      },
+      "equalizer": {
+        "default": "mdi:equalizer"
+      },
+      "mono": {
+        "default": "mdi:surround-sound-2-0"
+      },
+      "headphone_hxd": {
+        "default": "mdi:headphones-settings"
+      },
+      "meter_lights": {
+        "default": "mdi:gauge"
+      },
+      "tube_lights": {
+        "default": "mdi:lightbulb"
+      },
+      "display_auto_off": {
+        "default": "mdi:monitor-off"
+      }
     }
   }
 }

@@ -287,3 +287,80 @@ async def test_set_current_value(hass: HomeAssistant, emulator: MA352Emulator) -
     await hass.services.async_call(MP_DOMAIN, "volume_down", {ATTR_ENTITY_ID: MP}, blocking=True)
     assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+PASSTHROUGH = "binary_sensor.mcintosh_ma352_passthrough"
+
+
+async def test_passthrough(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Passthrough is inferred from the volume jump and blocks volume control."""
+    entry = await _setup(hass, emulator)
+    assert hass.states.get(PASSTHROUGH).state == STATE_OFF
+    features = hass.states.get(MP).attributes["supported_features"]
+
+    emulator.set_passthrough(True)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_ON)
+    state = hass.states.get(MP)
+    assert ATTR_MEDIA_VOLUME_LEVEL not in state.attributes
+    assert state.attributes["passthrough"] is True
+    assert state.attributes["supported_features"] != features
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(MP_DOMAIN, "volume_down", {ATTR_ENTITY_ID: MP}, blocking=True)
+    assert emulator.state["VOL"] == 69
+    # Mute still works.
+    await hass.services.async_call(
+        MP_DOMAIN, "volume_mute", {ATTR_ENTITY_ID: MP, ATTR_MEDIA_VOLUME_MUTED: True}, blocking=True
+    )
+    assert emulator.state["MUT"] == 1
+
+    emulator.set_passthrough(False)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.22
+    assert hass.states.get(MP).attributes["supported_features"] == features
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_passthrough_at_startup(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Starting while in passthrough is recognised; exit is a jump away from 69."""
+    emulator.state["VOL"] = 30
+    emulator.set_passthrough(True)
+    entry = await _setup(hass, emulator)
+    assert hass.states.get(PASSTHROUGH).state == STATE_ON
+    emulator.set_passthrough(False)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.3
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_knob_to_69_is_not_passthrough(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Single steps never count as passthrough, even onto 69 or via HA."""
+    emulator.state["VOL"] = 67
+    entry = await _setup(hass, emulator)
+    emulator.front_panel("VOL", 68)
+    emulator.front_panel("VOL", 69)
+    emulator.front_panel("VOL", 70)
+    await _wait_for(hass, lambda: hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.7)
+    assert hass.states.get(PASSTHROUGH).state == STATE_OFF
+    await hass.services.async_call(
+        MP_DOMAIN, "volume_set", {ATTR_ENTITY_ID: MP, ATTR_MEDIA_VOLUME_LEVEL: 0.69}, blocking=True
+    )
+    await hass.services.async_call(
+        MP_DOMAIN, "volume_set", {ATTR_ENTITY_ID: MP, ATTR_MEDIA_VOLUME_LEVEL: 0.2}, blocking=True
+    )
+    assert hass.states.get(PASSTHROUGH).state == STATE_OFF
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_passthrough_exit_missed(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """An exit missed while disconnected is corrected on reconnect."""
+    entry = await _setup(hass, emulator)
+    emulator.set_passthrough(True)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_ON)
+    emulator.mute_responses = True
+    emulator.drop_clients()
+    await _wait_for(hass, lambda: hass.states.get(MP).state == STATE_UNAVAILABLE)
+    emulator.state["VOL"] = 22  # left passthrough while we were away
+    emulator.mute_responses = False
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF, timeout=5)
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.22
+    await hass.config_entries.async_unload(entry.entry_id)
