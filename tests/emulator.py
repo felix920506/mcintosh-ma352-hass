@@ -112,16 +112,6 @@ class MA352Emulator:
         for writer in self._writers:
             writer.write(data)
 
-    def set_passthrough(self, on: bool) -> None:
-        """Simulate the 12 V trigger: fixed volume 69, restored on exit."""
-        if on:
-            self._saved_volume = self.state["VOL"]
-            self.state["VOL"] = 69
-        else:
-            self.state["VOL"] = self._saved_volume
-        if self.state["STA"] == 1:
-            self.send(f"VOL {self.state['VOL']}")
-
     def front_panel(self, name: str, value: int) -> None:
         """Simulate a local state change, pushed when STA is enabled."""
         if name == "PWR" and value == 1 and self.state["PWR"] == 0:

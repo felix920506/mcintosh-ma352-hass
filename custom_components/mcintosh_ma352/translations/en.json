@@ -51,54 +51,25 @@
   },
   "entity": {
     "binary_sensor": {
-      "headphones": {
-        "name": "Headphones"
-      },
-      "passthrough": {
-        "name": "Passthrough"
-      }
+      "headphones": { "name": "Headphones" }
     },
     "number": {
-      "balance": {
-        "name": "Balance"
-      },
-      "input_trim": {
-        "name": "Input trim"
-      }
+      "balance": { "name": "Balance" },
+      "input_trim": { "name": "Input trim" }
     },
     "select": {
-      "display_brightness": {
-        "name": "Display brightness"
-      },
-      "phono_capacitance": {
-        "name": "Phono capacitance"
-      }
+      "display_brightness": { "name": "Display brightness" },
+      "phono_capacitance": { "name": "Phono capacitance" }
     },
     "switch": {
-      "output_1": {
-        "name": "Output 1"
-      },
-      "output_2": {
-        "name": "Output 2"
-      },
-      "equalizer": {
-        "name": "Equalizer"
-      },
-      "mono": {
-        "name": "Mono"
-      },
-      "headphone_hxd": {
-        "name": "Headphone HXD"
-      },
-      "meter_lights": {
-        "name": "Meter lights"
-      },
-      "tube_lights": {
-        "name": "Tube lights"
-      },
-      "display_auto_off": {
-        "name": "Display auto off"
-      }
+      "output_1": { "name": "Output 1" },
+      "output_2": { "name": "Output 2" },
+      "equalizer": { "name": "Equalizer" },
+      "mono": { "name": "Mono" },
+      "headphone_hxd": { "name": "Headphone HXD" },
+      "meter_lights": { "name": "Meter lights" },
+      "tube_lights": { "name": "Tube lights" },
+      "display_auto_off": { "name": "Display auto off" }
     }
   }
 }

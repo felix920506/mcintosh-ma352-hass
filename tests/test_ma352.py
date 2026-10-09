@@ -44,7 +44,6 @@ async def test_query_and_commands(emulator: MA352Emulator) -> None:
         # Absolute sets ramp; the command completes at the target.
         assert await client.command("VOL", 30) == 30
         assert await client.command("VOL", 25) == 25
-        assert not state.passthrough
         await client.command("VOL", 21)
         assert await client.command("TBA", -5) == -5
 

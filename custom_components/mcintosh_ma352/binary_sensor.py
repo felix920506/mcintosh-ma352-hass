@@ -19,8 +19,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up binary sensors."""
-    hub = entry.runtime_data
-    async_add_entities([MA352HeadphonesSensor(hub), MA352PassthroughSensor(hub)])
+    async_add_entities([MA352HeadphonesSensor(entry.runtime_data)])
 
 
 class MA352HeadphonesSensor(MA352Entity, BinarySensorEntity):
@@ -42,21 +41,3 @@ class MA352HeadphonesSensor(MA352Entity, BinarySensorEntity):
         """Return True when headphones are plugged in."""
         value = self.raw(CMD_HEADPHONES)
         return None if value is None else value == 1
-
-
-class MA352PassthroughSensor(MA352Entity, BinarySensorEntity):
-    """Passthrough (power amplifier only, fixed gain) mode.
-
-    Inferred from volume reports; the unit has no status for it.
-    """
-
-    _attr_translation_key = "passthrough"
-
-    def __init__(self, hub) -> None:
-        """Initialize."""
-        super().__init__(hub, "passthrough")
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return True in passthrough mode, None if undeterminable."""
-        return self.hub.client.state.passthrough
