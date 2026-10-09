@@ -245,11 +245,23 @@ async def test_commands_wait_for_boot(hass: HomeAssistant, emulator: MA352Emulat
 async def test_front_panel_power_on(hass: HomeAssistant, emulator: MA352Emulator) -> None:
     """Power-on from the remote is picked up and state re-read after boot."""
     emulator.state["PWR"] = 0
+    emulator.boot_time = 1.5  # longer than the (patched) 1 s query timeout
     entry = await _setup(hass, emulator)
     tube = "switch.mcintosh_ma352_tube_lights"
     assert hass.states.get(tube).state == STATE_UNAVAILABLE
-    emulator.state["TTL"] = 0  # changed while we couldn't see it
-    emulator.front_panel("PWR", 1)
-    await _wait_for(hass, lambda: hass.states.get(tube).state == STATE_OFF)
+    emulator.received.clear()
+    states: list[str] = []
+    hass.bus.async_listen(
+        "state_changed",
+        lambda ev: ev.data["entity_id"] == MP and states.append(ev.data["new_state"].state),
+    )
+    emulator.front_panel("PWR", 1)  # dump, then 1.5 s boot
+    hub = entry.runtime_data
+    await _wait_for(hass, lambda: hub._boot_task is not None)
+    await _wait_for(hass, lambda: hub._boot_task is None, timeout=5)
+    await hass.async_block_till_done()
+    # The probe was answered after boot, then state was re-read; never unavailable.
+    assert emulator.received[:2] == ["PWR", "QRY"]
+    assert STATE_UNAVAILABLE not in states
     assert hass.states.get(MP).state == STATE_ON
     await hass.config_entries.async_unload(entry.entry_id)

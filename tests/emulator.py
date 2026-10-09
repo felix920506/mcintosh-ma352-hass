@@ -111,6 +111,10 @@ class MA352Emulator:
 
     def front_panel(self, name: str, value: int) -> None:
         """Simulate a local state change, pushed when STA is enabled."""
+        if name == "PWR" and value == 1 and self.state["PWR"] == 0:
+            # Real unit: power button pushes a full dump, then boots.
+            self.send(*self.handle("PWR 1"))
+            return
         self.state[name] = value
         if self.state["STA"] == 1:
             self.send(f"{name} {value}")

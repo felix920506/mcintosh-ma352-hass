@@ -249,14 +249,17 @@ class MA352:
             _LOGGER.debug("Ignoring unknown frame: %s", frame)
             return
         name, value = match.group(1), match.group(2)
+        changed = False
         if value is not None:
             self._query_state_seen = True
             changed = self.state.values.get(name) != int(value)
             self.state.values[name] = int(value)
-            if changed:
-                self._notify()
+        # Resolve the pending command before notifying: a listener may send a
+        # new command (eager tasks) that must not be answered by this frame.
         if self._pending and self._pending[0] == name and not self._pending[1].done():
             self._pending[1].set_result(frame)
+        if changed:
+            self._notify()
 
     async def _write(self, payload: str) -> None:
         if not self.connected:
