@@ -53,6 +53,9 @@ RANGES = {
     "THH": (0, 1),
 }
 READ_ONLY = {"HPS"}
+# Set commands that are not acknowledged when the value does not change
+# (observed on FW 1.07; MUT, INP, OP1, OP2 and TDB always echo).
+SILENT_WHEN_UNCHANGED = {"VOL", "TBA", "TIN", "TEQ", "TMO", "TTL", "TML", "TDS", "STA"}
 STEP = {
     "VOL": {"U": 1, "D": -1},
     "INP": {"U": 1, "D": -1},
@@ -129,8 +132,8 @@ class MA352Emulator:
                     self.received.append(match.group(1))
                     if self._boot_queue is not None:
                         self._boot_queue.append(match.group(1))
-                    elif not self.mute_responses:
-                        self.send(*self.handle(match.group(1)))
+                    elif not self.mute_responses and (reply := self.handle(match.group(1))):
+                        self.send(*reply)
                 buf = buf[buf.rfind(")") + 1 :] if ")" in buf else buf
         finally:
             self._writers.remove(writer)
@@ -172,6 +175,8 @@ class MA352Emulator:
                 return [ERR_PAR]
         if name == "INP" and value in self.disabled_inputs:
             return [ERR_PAR]
+        if name in SILENT_WHEN_UNCHANGED and value == self.state[name]:
+            return []
         if name == "PWR" and value == 1 and self.state["PWR"] == 0:
             # Real unit: answers with a full dump, then boots while queueing
             # (not dropping) commands.

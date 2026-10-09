@@ -108,3 +108,27 @@ async def test_connect_failure() -> None:
     client = MA352("socket://127.0.0.1:1")
     with pytest.raises(MA352ConnectionError):
         await client.connect()
+
+
+async def test_unchanged_value_not_acknowledged(emulator: MA352Emulator) -> None:
+    """Set commands that change nothing get no echo from the unit."""
+    client = MA352(emulator.url)
+    await client.connect()
+    try:
+        await client.query()
+        emulator.received.clear()
+        # Known to match: not sent at all.
+        assert await client.command("VOL", 22) == 22
+        assert emulator.received == []
+        # Stale cache: sent, unacknowledged, then confirmed with a query.
+        client.state.values["TTL"] = 0
+        assert await client.command("TTL", 1) == 1
+        assert emulator.received == ["TTL 1", "TTL"]
+        # Relative step at the limit.
+        emulator.state["VOL"] = 0
+        client.state.values["VOL"] = 0
+        emulator.received.clear()
+        assert await client.command("VOL", "D") == 0
+        assert emulator.received == ["VOL D", "VOL"]
+    finally:
+        await client.disconnect()

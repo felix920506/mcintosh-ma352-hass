@@ -280,21 +280,38 @@ class MA352:
         param: str | int | None = None,
         timeout: float | None = None,
     ) -> int | None:
-        """Send a command and return the value from the acknowledgement."""
+        """Send a command and return the value from the acknowledgement.
+
+        Firmware 1.07 does not acknowledge most set commands that leave the
+        value unchanged (e.g. ``VOL 22`` at 22, or ``VOL U`` at the limit).
+        Such commands are skipped when the known value already matches, and a
+        missing acknowledgement is resolved by querying the current value.
+        """
+        if isinstance(param, int) and self.state.values.get(name) == param:
+            return param
         payload = f"({name})" if param is None else f"({name} {param})"
         async with self._lock:
-            loop = asyncio.get_running_loop()
-            future: asyncio.Future[str] = loop.create_future()
-            self._pending = (name, future)
             try:
-                await self._write(payload)
-                frame = await asyncio.wait_for(future, timeout or COMMAND_TIMEOUT)
-            except TimeoutError as err:
-                raise MA352TimeoutError(f"No response to {payload}") from err
-            finally:
-                self._pending = None
+                frame = await self._transact(name, payload, timeout)
+            except MA352TimeoutError:
+                if param is None:
+                    raise
+                _LOGGER.debug("No acknowledgement for %s, querying %s", payload, name)
+                frame = await self._transact(name, f"({name})", timeout)
         match = _STATE_RE.match(frame)
         return int(match.group(2)) if match and match.group(2) is not None else None
+
+    async def _transact(self, name: str, payload: str, timeout: float | None) -> str:
+        """Send a frame and wait for the reply named ``name`` (lock held)."""
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._pending = (name, future)
+        try:
+            await self._write(payload)
+            return await asyncio.wait_for(future, timeout or COMMAND_TIMEOUT)
+        except TimeoutError as err:
+            raise MA352TimeoutError(f"No response to {payload}") from err
+        finally:
+            self._pending = None
 
     async def query(self) -> MA352State:
         """Request the full status (QRY) and wait for the response to settle."""

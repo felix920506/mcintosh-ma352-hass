@@ -265,3 +265,25 @@ async def test_front_panel_power_on(hass: HomeAssistant, emulator: MA352Emulator
     assert STATE_UNAVAILABLE not in states
     assert hass.states.get(MP).state == STATE_ON
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_set_current_value(hass: HomeAssistant, emulator: MA352Emulator) -> None:
+    """Setting the current value succeeds without error."""
+    entry = await _setup(hass, emulator)
+    await hass.services.async_call(
+        MP_DOMAIN, "volume_set", {ATTR_ENTITY_ID: MP, ATTR_MEDIA_VOLUME_LEVEL: 0.22}, blocking=True
+    )
+    await hass.services.async_call(
+        "switch", "turn_on", {ATTR_ENTITY_ID: "switch.mcintosh_ma352_tube_lights"}, blocking=True
+    )
+    await hass.services.async_call(
+        "number", "set_value",
+        {ATTR_ENTITY_ID: "number.mcintosh_ma352_balance", "value": 0},
+        blocking=True,
+    )
+    emulator.state["VOL"] = 0
+    emulator.front_panel("VOL", 0)
+    await _wait_for(hass, lambda: hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0)
+    await hass.services.async_call(MP_DOMAIN, "volume_down", {ATTR_ENTITY_ID: MP}, blocking=True)
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0
+    await hass.config_entries.async_unload(entry.entry_id)

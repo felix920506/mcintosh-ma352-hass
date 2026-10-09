@@ -52,6 +52,7 @@ These are observations from a unit running firmware 1.07 that differ from or add
 - Front panel/remote volume changes made during that boot window are ignored by the unit (unlike RS232 commands, which are queued).
 - Power-on (from RS232, the power button or the remote) pushes a full status dump. Mute is cleared on power-on.
 - Relative commands (`VOL U`, `TBA L`, …) are acknowledged with the resulting absolute value.
+- Set commands that leave the value unchanged are **not acknowledged** for `VOL`, `TBA`, `TIN`, `TEQ`, `TMO`, `TTL`, `TML`, `TDS` and `STA` (but are for `MUT`, `INP`, `OP1`, `OP2`, `TDB`). The integration skips writes that match the known state and confirms unacknowledged ones with a query.
 - In standby, `QRY` returns only product info and `(PWR 0)`. Every other command except `PWR` returns `ERROR - Invalid Command`.
 
 ## Development
