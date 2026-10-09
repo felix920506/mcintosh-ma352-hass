@@ -396,3 +396,26 @@ async def test_passthrough_volume_already_69(
     emulator.set_passthrough(False)
     await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_volume_while_passthrough_unknown(
+    hass: HomeAssistant, emulator: MA352Emulator
+) -> None:
+    """Volume stays usable while undetermined; its ramp is not a knob step."""
+    emulator.state["VOL"] = 22
+    emulator.set_passthrough(True)
+    entry = await _setup(hass, emulator)
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
+    await hass.services.async_call(
+        MP_DOMAIN, "volume_set", {ATTR_ENTITY_ID: MP, ATTR_MEDIA_VOLUME_LEVEL: 0.4}, blocking=True
+    )
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.4
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
+    # A routine poll at 40 doesn't decide it either.
+    await entry.runtime_data.async_refresh()
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
+    # Exit: the unit restores its own volume (as observed: 40 is discarded).
+    emulator.set_passthrough(False)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
+    assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.22
+    await hass.config_entries.async_unload(entry.entry_id)

@@ -195,6 +195,12 @@ class MA352Emulator:
                 self._boot_queue = []
                 asyncio.get_running_loop().call_later(self.boot_time, self._booted)
             return self.handle("QRY")
+        if name == "VOL" and arg not in STEP["VOL"]:
+            # Absolute volume ramps in 1 % steps, each pushed.
+            step = 1 if value > self.state[name] else -1
+            start = self.state[name]
+            self.state[name] = value
+            return [f"VOL {v}" for v in range(start + step, value + step, step)]
         self.state[name] = value
         return [f"{name} {value}"]
 

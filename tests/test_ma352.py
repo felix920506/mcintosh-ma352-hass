@@ -41,6 +41,11 @@ async def test_query_and_commands(emulator: MA352Emulator) -> None:
 
         assert await client.command("VOL", "D") == 21
         assert state.get("VOL") == 21
+        # Absolute sets ramp; the command completes at the target.
+        assert await client.command("VOL", 30) == 30
+        assert await client.command("VOL", 25) == 25
+        assert not state.passthrough
+        await client.command("VOL", 21)
         assert await client.command("TBA", -5) == -5
 
         with pytest.raises(MA352CommandError, match="Invalid Input"):

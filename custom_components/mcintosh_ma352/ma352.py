@@ -158,6 +158,9 @@ class MA352:
         self._connection_listeners: list[Callable[[bool], None]] = []
         # Pending command: (name, future) - only one command in flight.
         self._pending: tuple[str, asyncio.Future[str]] | None = None
+        # Value that completes the pending command (absolute volume sets ramp
+        # in 1 % steps, each pushed as a frame).
+        self._pending_value: int | None = None
         self._query_state_seen = False
         self._rx_event = asyncio.Event()
         self._dump_until = 0.0
@@ -276,7 +279,12 @@ class MA352:
                 self._dump_until = 0.0  # last frame of a dump
         # Resolve the pending command before notifying: a listener may send a
         # new command (eager tasks) that must not be answered by this frame.
-        if self._pending and self._pending[0] == name and not self._pending[1].done():
+        if (
+            self._pending
+            and self._pending[0] == name
+            and not self._pending[1].done()
+            and (self._pending_value is None or value == str(self._pending_value))
+        ):
             self._pending[1].set_result(frame)
         if changed:
             self._notify()
@@ -286,7 +294,7 @@ class MA352:
 
         In passthrough (enabled e.g. by a 12 V trigger) the unit reports a
         fixed volume (69 % on the unit tested) and ignores the knob and
-        remote. There is no explicit status, but entering and leaving always
+        remote; RS232 volume commands are accepted but discarded on exit. There is no explicit status, but entering and leaving always
         push one unsolicited volume frame: a jump to the level and back (or
         a repeat of the same value if the volume already was at the level).
         The knob and remote push exactly one frame per 1 % step.
@@ -307,11 +315,13 @@ class MA352:
             solicited = self._pending is not None and self._pending[0] == CMD_VOLUME
             if in_dump:
                 # Full status: decide after connect/power-on; afterwards it
-                # only corrects a passthrough state whose exit was missed.
+                # only corrects a passthrough state whose exit was missed
+                # (volume control is locked then, so it must still read the
+                # level; while undetermined, HA may have changed it).
                 if not self._passthrough_known:
                     self.state.passthrough = None if new == level else False
                     self._passthrough_known = True
-                elif new != level:
+                elif self.state.passthrough and new != level:
                     self.state.passthrough = False
             elif not solicited and old is not None:
                 if abs(new - old) == 1:
@@ -361,7 +371,12 @@ class MA352:
         payload = f"({name})" if param is None else f"({name} {param})"
         async with self._lock:
             try:
-                frame = await self._transact(name, payload, timeout)
+                frame = await self._transact(
+                    name,
+                    payload,
+                    timeout,
+                    param if name == CMD_VOLUME and isinstance(param, int) else None,
+                )
             except MA352TimeoutError:
                 if param is None:
                     raise
@@ -370,10 +385,21 @@ class MA352:
         match = _STATE_RE.match(frame)
         return int(match.group(2)) if match and match.group(2) is not None else None
 
-    async def _transact(self, name: str, payload: str, timeout: float | None) -> str:
-        """Send a frame and wait for the reply named ``name`` (lock held)."""
+    async def _transact(
+        self,
+        name: str,
+        payload: str,
+        timeout: float | None,
+        value: int | None = None,
+    ) -> str:
+        """Send a frame and wait for the reply named ``name`` (lock held).
+
+        With ``value``, wait for the frame reporting that value; frames
+        before it (a volume ramp) count as part of the reply.
+        """
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._pending = (name, future)
+        self._pending_value = value
         try:
             await self._write(payload)
             return await asyncio.wait_for(future, timeout or COMMAND_TIMEOUT)
@@ -381,6 +407,7 @@ class MA352:
             raise MA352TimeoutError(f"No response to {payload}") from err
         finally:
             self._pending = None
+            self._pending_value = None
 
     async def query(self) -> MA352State:
         """Request the full status (QRY) and wait for the response to settle."""
