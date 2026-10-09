@@ -53,7 +53,8 @@ These are observations from a unit running firmware 1.07 that differ from or add
 - Front panel/remote volume changes made during that boot window are ignored by the unit (unlike RS232 commands, which are queued).
 - Power-on (from RS232, the power button or the remote) pushes a full status dump. Mute is cleared on power-on.
 - Relative commands (`VOL U`, `TBA L`, …) are acknowledged with the resulting absolute value.
-- Absolute volume changes ramp in 1 % steps, and **every step is pushed** (`VOL 25` at 30 → `(VOL 29)(VOL 28)…(VOL 25)`). The integration waits for the target value.
+- Absolute volume changes ramp in 1 % steps, and **every step is pushed** (`VOL 25` at 30 → `(VOL 29)(VOL 28)…(VOL 25)`). The integration waits for the target value and updates Home Assistant once, at the target.
+- There is no rate limit: back-to-back commands with no gap are all processed in order. While a slider is dragged, the integration sends only the most recent value once the previous command has finished.
 - Set commands that leave the value unchanged are **not acknowledged** for `VOL`, `TBA`, `TIN`, `TEQ`, `TMO`, `TTL`, `TML`, `TDS` and `STA` (but are for `MUT`, `INP`, `OP1`, `OP2`, `TDB`). The integration skips writes that match the known state and confirms unacknowledged ones with a query.
 - In standby, `QRY` returns only product info and `(PWR 0)`. Every other command except `PWR` returns `ERROR - Invalid Command`.
 

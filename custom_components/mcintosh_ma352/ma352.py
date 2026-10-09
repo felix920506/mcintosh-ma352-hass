@@ -152,6 +152,12 @@ class MA352:
         # Value that completes the pending command (absolute volume sets ramp
         # in 1 % steps, each pushed as a frame).
         self._pending_value: int | None = None
+        # Ramp steps of our own volume change are reported once the target is
+        # reached rather than as one state update per 1 % step.
+        self._held_notify = False
+        # Latest absolute set per command name: a queued one superseded by a newer
+        # one (e.g. while dragging a slider) is dropped.
+        self._latest_request: dict[str, object] = {}
         self._query_state_seen = False
         self._rx_event = asyncio.Event()
 
@@ -260,14 +266,14 @@ class MA352:
             self.state.values[name] = int(value)
         # Resolve the pending command before notifying: a listener may send a
         # new command (eager tasks) that must not be answered by this frame.
-        if (
-            self._pending
-            and self._pending[0] == name
-            and not self._pending[1].done()
-            and (self._pending_value is None or value == str(self._pending_value))
-        ):
-            self._pending[1].set_result(frame)
-        if changed:
+        if self._pending and self._pending[0] == name and not self._pending[1].done():
+            if self._pending_value is None or value == str(self._pending_value):
+                self._pending[1].set_result(frame)
+            elif changed:
+                self._held_notify = True
+                return
+        if changed or self._held_notify:
+            self._held_notify = False
             self._notify()
 
     async def _write(self, payload: str) -> None:
@@ -295,11 +301,20 @@ class MA352:
         value unchanged (e.g. ``VOL 22`` at 22, or ``VOL U`` at the limit).
         Such commands are skipped when the known value already matches, and a
         missing acknowledgement is resolved by querying the current value.
+
+        An absolute set superseded by a newer one for the same setting
+        while waiting for its turn is not sent at all.
         """
-        if isinstance(param, int) and self.state.values.get(name) == param:
-            return param
         payload = f"({name})" if param is None else f"({name} {param})"
+        absolute = isinstance(param, int)
+        request = object()
+        if absolute:
+            self._latest_request[name] = request
         async with self._lock:
+            if absolute and self._latest_request.get(name) is not request:
+                return self.state.values.get(name)
+            if absolute and self.state.values.get(name) == param:
+                return param
             try:
                 frame = await self._transact(
                     name,
@@ -338,6 +353,9 @@ class MA352:
         finally:
             self._pending = None
             self._pending_value = None
+            if self._held_notify:
+                self._held_notify = False
+                self._notify()
 
     async def query(self) -> MA352State:
         """Request the full status (QRY) and wait for the response to settle."""

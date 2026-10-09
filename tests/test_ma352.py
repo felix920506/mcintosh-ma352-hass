@@ -136,3 +136,29 @@ async def test_unchanged_value_not_acknowledged(emulator: MA352Emulator) -> None
         assert emulator.received == ["VOL D", "VOL"]
     finally:
         await client.disconnect()
+
+
+async def test_slider_burst(emulator: MA352Emulator) -> None:
+    """Rapid volume sets: queued ones are superseded, the last one wins."""
+    client = MA352(emulator.url)
+    await client.connect()
+    try:
+        await client.query()
+        updates: list[int | None] = []
+        client.add_listener(lambda: updates.append(client.state.get("VOL")))
+        emulator.received.clear()
+        # 15 is in flight while 20, 18 and 22 queue up behind it; 22 matched
+        # the (stale) value when requested but must still be applied.
+        await asyncio.gather(*(client.command("VOL", v) for v in (15, 20, 18, 22)))
+        assert emulator.received == ["VOL 15", "VOL 22"]
+        assert client.state.get("VOL") == emulator.state["VOL"] == 22
+        # One state update per command, not one per ramp step.
+        assert updates == [15, 22]
+
+        # A relative step after an absolute set is applied after it.
+        emulator.received.clear()
+        await asyncio.gather(client.command("VOL", 10), client.command("VOL", "U"))
+        assert emulator.received == ["VOL 10", "VOL U"]
+        assert client.state.get("VOL") == 11
+    finally:
+        await client.disconnect()
