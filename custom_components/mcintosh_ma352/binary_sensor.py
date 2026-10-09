@@ -57,6 +57,6 @@ class MA352PassthroughSensor(MA352Entity, BinarySensorEntity):
         super().__init__(hub, "passthrough")
 
     @property
-    def is_on(self) -> bool:
-        """Return True in passthrough mode."""
+    def is_on(self) -> bool | None:
+        """Return True in passthrough mode, None if undeterminable."""
         return self.hub.client.state.passthrough

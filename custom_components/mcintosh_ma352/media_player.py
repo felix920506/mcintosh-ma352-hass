@@ -63,7 +63,7 @@ class MA352MediaPlayer(MA352Entity, MediaPlayerEntity):
         return self.hub.client.state.power
 
     @property
-    def _passthrough(self) -> bool:
+    def _passthrough(self) -> bool | None:
         return self.hub.client.state.passthrough
 
     @property
@@ -99,7 +99,7 @@ class MA352MediaPlayer(MA352Entity, MediaPlayerEntity):
         return INPUTS.get(self.raw(CMD_INPUT)) if self._on else None
 
     @property
-    def extra_state_attributes(self) -> dict[str, int | bool]:
+    def extra_state_attributes(self) -> dict[str, int | bool | None]:
         """Expose the configured volume limit and passthrough mode."""
         return {"max_volume": self._max_volume, "passthrough": self._passthrough}
 

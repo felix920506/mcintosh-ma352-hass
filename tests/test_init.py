@@ -14,7 +14,13 @@ from homeassistant.components.media_player import (
     DOMAIN as MP_DOMAIN,
 )
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
@@ -321,11 +327,11 @@ async def test_passthrough(hass: HomeAssistant, emulator: MA352Emulator) -> None
 
 
 async def test_passthrough_at_startup(hass: HomeAssistant, emulator: MA352Emulator) -> None:
-    """Starting while in passthrough is recognised; exit is a jump away from 69."""
+    """Starting at 69 is ambiguous; the exit jump away from 69 resolves it."""
     emulator.state["VOL"] = 30
     emulator.set_passthrough(True)
     entry = await _setup(hass, emulator)
-    assert hass.states.get(PASSTHROUGH).state == STATE_ON
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
     emulator.set_passthrough(False)
     await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
     assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.3
@@ -363,4 +369,30 @@ async def test_passthrough_exit_missed(hass: HomeAssistant, emulator: MA352Emula
     emulator.mute_responses = False
     await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF, timeout=5)
     assert hass.states.get(MP).attributes[ATTR_MEDIA_VOLUME_LEVEL] == 0.22
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_passthrough_volume_already_69(
+    hass: HomeAssistant, emulator: MA352Emulator
+) -> None:
+    """With the volume already at 69 transitions repeat (VOL 69)."""
+    emulator.state["VOL"] = 69
+    entry = await _setup(hass, emulator)
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
+    # Still unknown after a transition from an unknown state.
+    emulator.set_passthrough(True)
+    emulator.set_passthrough(False)
+    await asyncio.sleep(0.1)
+    assert hass.states.get(PASSTHROUGH).state == STATE_UNKNOWN
+    # A knob step proves normal mode.
+    emulator.front_panel("VOL", 68)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
+    emulator.front_panel("VOL", 69)
+    await asyncio.sleep(0.1)
+    assert hass.states.get(PASSTHROUGH).state == STATE_OFF
+    # Now known: repeated 69 frames toggle.
+    emulator.set_passthrough(True)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_ON)
+    emulator.set_passthrough(False)
+    await _wait_for(hass, lambda: hass.states.get(PASSTHROUGH).state == STATE_OFF)
     await hass.config_entries.async_unload(entry.entry_id)

@@ -112,8 +112,8 @@ class MA352State:
     """Last known state; values are the raw integers reported by the unit."""
 
     values: dict[str, int] = field(default_factory=dict)
-    # Inferred: the unit has no passthrough status (see MA352._track_passthrough).
-    passthrough: bool = False
+    # Inferred, None if undeterminable (see MA352._track_passthrough).
+    passthrough: bool | None = False
 
     def get(self, name: str) -> int | None:
         """Return a raw value."""
@@ -285,41 +285,48 @@ class MA352:
         """Infer passthrough mode; return True if it changed.
 
         In passthrough (enabled e.g. by a 12 V trigger) the unit reports a
-        fixed volume (69 % on the unit tested) and ignores the knob/remote.
-        Entering and leaving push a single volume frame that jumps straight
-        to that level and back, whereas the knob and remote push one frame
-        per 1 % step. There is no explicit status, so an unsolicited jump to
-        the level means passthrough, a jump away from it means normal mode;
-        after connecting or a power-on, passthrough is assumed if the volume
-        equals the level.
+        fixed volume (69 % on the unit tested) and ignores the knob and
+        remote. There is no explicit status, but entering and leaving always
+        push one unsolicited volume frame: a jump to the level and back (or
+        a repeat of the same value if the volume already was at the level).
+        The knob and remote push exactly one frame per 1 % step.
+
+        ``passthrough`` is None when undeterminable: a status snapshot taken
+        at exactly the level (after connect or power-on) looks the same in
+        both modes until the next knob step or transition.
         """
         before = self.state.passthrough
+        level = self.passthrough_level
         if name == CMD_POWER:
             if new == 0:
                 self.state.passthrough = False
-            if new != old:
+            elif new != old:
                 self._passthrough_known = False
         elif name == CMD_VOLUME:
             in_dump = asyncio.get_running_loop().time() < self._dump_until
             solicited = self._pending is not None and self._pending[0] == CMD_VOLUME
-            level = self.passthrough_level
             if in_dump:
-                # Full status: decide after connect/power-on; otherwise only
-                # correct a passthrough state whose exit was missed.
+                # Full status: decide after connect/power-on; afterwards it
+                # only corrects a passthrough state whose exit was missed.
                 if not self._passthrough_known:
-                    self.state.passthrough = new == level
+                    self.state.passthrough = None if new == level else False
                     self._passthrough_known = True
-                elif self.state.passthrough and new != level:
+                elif new != level:
                     self.state.passthrough = False
-            elif not solicited and old is not None and abs(new - old) >= PASSTHROUGH_JUMP:
-                self._passthrough_known = True
-                if new == level:
+            elif not solicited and old is not None:
+                if abs(new - old) == 1:
+                    # Knob/remote step: these are ignored in passthrough.
+                    self.state.passthrough = False
+                elif new == level and old != level:
                     self.state.passthrough = True
-                elif old == level or self.state.passthrough:
+                elif new == level:
+                    # Repeated level: a transition in either direction.
+                    if self.state.passthrough is not None:
+                        self.state.passthrough = not self.state.passthrough
+                else:
                     self.state.passthrough = False
                 _LOGGER.debug(
-                    "Passthrough %s (volume %s -> %s)",
-                    "on" if self.state.passthrough else "off", old, new,
+                    "Volume %s -> %s, passthrough %s", old, new, self.state.passthrough
                 )
         return before != self.state.passthrough
 
