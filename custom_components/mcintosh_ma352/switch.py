@@ -13,7 +13,7 @@ from . import MA352ConfigEntry
 from .entity import MA352Entity
 from .hub import MA352Hub
 from .ma352 import (
-    CMD_DISPLAY_AUTO_OFF,
+    CMD_DISPLAY_ALWAYS_ON,
     CMD_EQUALIZER,
     CMD_HEADPHONE_HXD,
     CMD_HEADPHONES,
@@ -60,9 +60,9 @@ SWITCHES: tuple[MA352SwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
     ),
     MA352SwitchDescription(
-        key="display_auto_off",
-        translation_key="display_auto_off",
-        command=CMD_DISPLAY_AUTO_OFF,
+        key="display_always_on",
+        translation_key="display_always_on",
+        command=CMD_DISPLAY_ALWAYS_ON,
         entity_category=EntityCategory.CONFIG,
     ),
 )

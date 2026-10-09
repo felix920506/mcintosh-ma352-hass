@@ -19,7 +19,7 @@
       "headphone_hxd": { "default": "mdi:headphones-settings" },
       "meter_lights": { "default": "mdi:gauge" },
       "tube_lights": { "default": "mdi:lightbulb" },
-      "display_auto_off": { "default": "mdi:monitor-off" }
+      "display_always_on": { "default": "mdi:monitor" }
     }
   }
 }

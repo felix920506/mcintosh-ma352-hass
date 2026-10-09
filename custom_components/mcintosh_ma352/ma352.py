@@ -64,8 +64,9 @@ CMD_MONO = "TMO"
 CMD_METER_LIGHTS = "TML"
 CMD_TUBE_LIGHTS = "TTL"
 CMD_DISPLAY_BRIGHTNESS = "TDB"
-# Undocumented: display auto-off (seen in QRY output, confirmed on the unit).
-CMD_DISPLAY_AUTO_OFF = "TDS"
+# Undocumented display timeout setting (seen in QRY output, confirmed on the
+# unit): 1 = Always on, 0 = Auto off.
+CMD_DISPLAY_ALWAYS_ON = "TDS"
 CMD_HEADPHONE_HXD = "THH"
 CMD_QUERY = "QRY"
 CMD_STATUS_ENABLE = "STA"

@@ -7,7 +7,7 @@ Local-push Home Assistant integration for the **McIntosh MA352** integrated ampl
 | Entity | Description |
 | --- | --- |
 | Media player | Power, volume (set/step), mute, input selection (BAL 1/2, UNBAL 1–3, MM PHONO) |
-| Switches | Output 1, Output 2, Equalizer, Mono, Headphone HXD\*, Meter lights, Tube lights, Display auto off |
+| Switches | Output 1, Output 2, Equalizer, Mono, Headphone HXD\*, Meter lights, Tube lights, Display always on |
 | Numbers | Balance (−50…+50), Input trim (−6…+6 dB in 0.5 dB steps) |
 | Selects | Display brightness (25–100 %), Phono capacitance\*\* (50–800 pF) |
 | Binary sensor | Headphones plugged in |
@@ -47,7 +47,7 @@ The port can be changed later with **Reconfigure** without losing entities.
 These are observations from a unit running firmware 1.07 that differ from or add to *MA352 External Control Rev A*:
 
 - Meter lights use command `TML`, not `TTM` as documented.
-- `TDS` (undocumented) controls **Display auto off**.
+- `TDS` (undocumented) is the display timeout setting: `1` = Always on, `0` = Auto off.
 - After power-on the unit is unresponsive for about 16 s while it boots. Commands sent during this time are **queued, not dropped**, and all run once boot completes. The integration therefore holds back commands until the amplifier answers a single probe, so volume steps can't pile up. This applies whether the amp was turned on from Home Assistant, the front panel or the remote.
 - There is no passthrough status, and set commands are accepted in passthrough (no `ERROR - In Passthru` was observed).
 - Front panel/remote volume changes made during that boot window are ignored by the unit (unlike RS232 commands, which are queued).

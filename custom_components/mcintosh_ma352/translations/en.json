@@ -69,7 +69,7 @@
       "headphone_hxd": { "name": "Headphone HXD" },
       "meter_lights": { "name": "Meter lights" },
       "tube_lights": { "name": "Tube lights" },
-      "display_auto_off": { "name": "Display auto off" }
+      "display_always_on": { "name": "Display always on" }
     }
   }
 }
