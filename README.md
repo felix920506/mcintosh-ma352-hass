@@ -80,3 +80,7 @@ MA352_LIVE_URL=socket://host:port pytest tests/test_live.py -s
 MA352_LIVE_URL=... MA352_LIVE_POWER=1 pytest tests/test_live.py -s   # includes a power cycle
 MA352_LIVE_URL=... MA352_LIVE_WATCH=120 pytest tests/test_live.py -s # log changes while you operate the amp
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
