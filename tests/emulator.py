@@ -1,7 +1,7 @@
 """A TCP emulator of the MA352 RS232 port, modelled on a real unit (FW 1.07).
 
-Run standalone with ``python -m tests.emulator [port]`` and point the
-integration at ``socket://127.0.0.1:<port>``.
+Run standalone with ``python -m tests.emulator [port] [--telnet]`` and point
+the integration at ``socket://127.0.0.1:<port>`` (or ``telnet://...``).
 """
 
 from __future__ import annotations
@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
+
+import telnetlib3
 
 INFO = ["MA352", "Serial Number: AHW0001", "FW Version: 1.07"]
 
@@ -73,7 +75,10 @@ _FRAME = re.compile(r"\(([^()]*)\)")
 class MA352Emulator:
     """Emulated amplifier serving one or more TCP clients."""
 
-    def __init__(self) -> None:
+    def __init__(self, telnet: bool = False) -> None:
+        # Serve the port wrapped in the Telnet protocol, like a serial server
+        # in telnet mode, instead of raw TCP.
+        self.telnet = telnet
         self.state = dict(DEFAULT_STATE)
         self.disabled_inputs: set[int] = set()
         self.received: list[str] = []
@@ -86,7 +91,12 @@ class MA352Emulator:
         self.port = 0
 
     async def start(self, port: int = 0) -> int:
-        self._server = await asyncio.start_server(self._client, "127.0.0.1", port)
+        if self.telnet:
+            self._server = await telnetlib3.create_server(
+                "127.0.0.1", port, shell=self._client, encoding=False
+            )
+        else:
+            self._server = await asyncio.start_server(self._client, "127.0.0.1", port)
         self.port = self._server.sockets[0].getsockname()[1]
         return self.port
 
@@ -104,7 +114,8 @@ class MA352Emulator:
 
     @property
     def url(self) -> str:
-        return f"socket://127.0.0.1:{self.port}"
+        scheme = "telnet" if self.telnet else "socket"
+        return f"{scheme}://127.0.0.1:{self.port}"
 
     def send(self, *frames: str) -> None:
         """Send frames to all clients (as the unit does with NUL padding)."""
@@ -200,12 +211,13 @@ class MA352Emulator:
             self.send(*self.handle(payload))
 
 
-async def _main(port: int) -> None:
-    emulator = MA352Emulator()
+async def _main(port: int, telnet: bool) -> None:
+    emulator = MA352Emulator(telnet)
     await emulator.start(port)
     print(f"MA352 emulator listening on {emulator.url}")
     await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
-    asyncio.run(_main(int(sys.argv[1]) if len(sys.argv) > 1 else 4001))
+    args = [arg for arg in sys.argv[1:] if arg != "--telnet"]
+    asyncio.run(_main(int(args[0]) if args else 4001, "--telnet" in sys.argv))

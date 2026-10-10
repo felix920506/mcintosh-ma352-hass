@@ -9,6 +9,6 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/felix920506/mcintosh-ma352-hass/issues",
   "loggers": ["custom_components.mcintosh_ma352"],
-  "requirements": ["pyserial-asyncio-fast>=0.16"],
+  "requirements": ["pyserial-asyncio-fast>=0.16", "telnetlib3>=2.0.4"],
   "version": "0.1.0"
 }

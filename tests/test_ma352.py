@@ -162,3 +162,39 @@ async def test_slider_burst(emulator: MA352Emulator) -> None:
         assert client.state.get("VOL") == 11
     finally:
         await client.disconnect()
+
+
+async def test_telnet_connection() -> None:
+    """A serial server in telnet mode works like a raw TCP one."""
+    emu = MA352Emulator(telnet=True)
+    await emu.start()
+    client = MA352(emu.url)
+    try:
+        await client.connect()
+        state = await client.query()
+        assert client.info.serial_number == "AHW0001"
+        assert state.get("VOL") == 22
+        assert await client.command("VOL", 30) == 30
+        emu.front_panel("MUT", 1)
+        for _ in range(50):
+            if state.get("MUT") == 1:
+                break
+            await asyncio.sleep(0.01)
+        assert state.get("MUT") == 1
+        assert emu.received == ["QRY", "VOL 30"]
+        emu.drop_clients()
+        for _ in range(50):
+            if not client.connected:
+                break
+            await asyncio.sleep(0.01)
+        assert not client.connected
+    finally:
+        await client.disconnect()
+        await emu.stop()
+
+
+async def test_telnet_bad_url() -> None:
+    """A telnet URL without a host raises MA352ConnectionError."""
+    client = MA352("telnet://")
+    with pytest.raises(MA352ConnectionError):
+        await client.connect()

@@ -14,9 +14,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 import re
+from urllib.parse import urlsplit
 
 import serial
 import serial_asyncio_fast
+import telnetlib3
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +32,9 @@ BOOT_TIMEOUT = 45.0
 QUERY_TIMEOUT = 4.0
 # Quiet period that marks the end of a multi-frame (QRY) response.
 QUERY_SETTLE = 0.4
+
+TELNET_SCHEME = "telnet"
+TELNET_DEFAULT_PORT = 23
 
 INPUTS: dict[int, str] = {
     1: "BAL 1",
@@ -136,7 +141,11 @@ class MA352:
     """Connection to a McIntosh MA352 over a local or network serial port."""
 
     def __init__(self, url: str, baudrate: int = DEFAULT_BAUDRATE) -> None:
-        """Initialize. ``url`` is a device path or a pyserial URL (socket://...)."""
+        """Initialize.
+
+        ``url`` is a device path, a pyserial URL (socket://, rfc2217://, ...)
+        or ``telnet://host[:port]`` for a serial server in telnet mode.
+        """
         self.url = url
         self.baudrate = baudrate
         self.info = MA352Info()
@@ -172,8 +181,19 @@ class MA352:
         if self.connected:
             return
         try:
-            self._reader, self._writer = await asyncio.wait_for(
-                serial_asyncio_fast.open_serial_connection(
+            parts = urlsplit(self.url)
+            if parts.scheme.lower() == TELNET_SCHEME:
+                if not parts.hostname:
+                    raise ValueError("missing host")
+                # Bytes mode: telnetlib3 handles negotiation and IAC escaping.
+                opener = telnetlib3.open_connection(
+                    parts.hostname,
+                    parts.port or TELNET_DEFAULT_PORT,
+                    encoding=False,
+                    connect_maxwait=1.0,
+                )
+            else:
+                opener = serial_asyncio_fast.open_serial_connection(
                     url=self.url,
                     baudrate=self.baudrate,
                     bytesize=serial.EIGHTBITS,
@@ -181,10 +201,9 @@ class MA352:
                     stopbits=serial.STOPBITS_ONE,
                     xonxoff=False,
                     rtscts=False,
-                ),
-                timeout=10,
-            )
-        except (OSError, serial.SerialException, TimeoutError) as err:
+                )
+            self._reader, self._writer = await asyncio.wait_for(opener, timeout=10)
+        except (OSError, ValueError, serial.SerialException, TimeoutError) as err:
             self._reader = self._writer = None
             raise MA352ConnectionError(f"Unable to open {self.url}: {err}") from err
         self._read_task = asyncio.get_running_loop().create_task(self._read_loop())

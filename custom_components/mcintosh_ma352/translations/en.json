@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Connect to McIntosh MA352",
-        "description": "Choose a local serial port or type a network serial server URL such as `socket://192.168.1.50:4001` (raw TCP) or `rfc2217://192.168.1.50:4001`.",
+        "description": "Choose a local serial port or type a network serial server URL such as `socket://192.168.1.50:4001` (raw TCP), `telnet://192.168.1.50:4001` (telnet) or `rfc2217://192.168.1.50:4001`.",
         "data": {
           "serial_port": "Serial port or URL",
           "baudrate": "Baud rate"
         },
         "data_description": {
-          "serial_port": "Device path (e.g. /dev/ttyUSB0, preferably a /dev/serial/by-id/ path) or pyserial URL.",
-          "baudrate": "Must match the RS232 baud rate set in the MA352 setup menu (default 115200). For a raw TCP serial server, the baud rate is configured on the server itself."
+          "serial_port": "Device path (e.g. /dev/ttyUSB0, preferably a /dev/serial/by-id/ path) or socket://, telnet:// or rfc2217:// URL.",
+          "baudrate": "Must match the RS232 baud rate set in the MA352 setup menu (default 115200). For a raw TCP or telnet serial server, the baud rate is configured on the server itself."
         }
       },
       "reconfigure": {
@@ -20,8 +20,8 @@
           "baudrate": "Baud rate"
         },
         "data_description": {
-          "serial_port": "Device path (e.g. /dev/ttyUSB0, preferably a /dev/serial/by-id/ path) or pyserial URL.",
-          "baudrate": "Must match the RS232 baud rate set in the MA352 setup menu (default 115200). For a raw TCP serial server, the baud rate is configured on the server itself."
+          "serial_port": "Device path (e.g. /dev/ttyUSB0, preferably a /dev/serial/by-id/ path) or socket://, telnet:// or rfc2217:// URL.",
+          "baudrate": "Must match the RS232 baud rate set in the MA352 setup menu (default 115200). For a raw TCP or telnet serial server, the baud rate is configured on the server itself."
         }
       }
     },

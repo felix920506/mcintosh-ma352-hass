@@ -36,9 +36,10 @@ When adding the integration, either choose a detected serial port or type a URL:
 | --- | --- |
 | Local USB/RS232 adapter | `/dev/serial/by-id/usb-FTDI_...-if00-port0` (preferred over `/dev/ttyUSB0`, which can change) |
 | Raw TCP serial server | `socket://192.168.1.50:4001` |
+| Telnet serial server | `telnet://192.168.1.50:4001` (port defaults to 23) |
 | RFC 2217 serial server | `rfc2217://192.168.1.50:4001` |
 
-For a raw TCP (`socket://`) server, set the baud rate on the server itself to match the amplifier. Many serial servers accept only one TCP client at a time, so close other tools before connecting.
+For a raw TCP (`socket://`) or telnet (`telnet://`) server, set the baud rate on the server itself to match the amplifier. Use `telnet://` when the server port is in telnet mode (e.g. ser2net `telnet`); a raw `socket://` connection to such a port would see Telnet negotiation bytes. Telnet is handled by [telnetlib3](https://github.com/jquast/telnetlib3). Many serial servers accept only one TCP client at a time, so close other tools before connecting.
 
 The port can be changed later with **Reconfigure** without losing entities.
 
@@ -72,7 +73,7 @@ pip install -r requirements_test.txt
 pytest
 ```
 
-Tests run against an emulator of the amplifier (`tests/emulator.py`) over a local TCP socket. You can also run it standalone (`python -m tests.emulator 4001`) and point a dev Home Assistant instance at `socket://127.0.0.1:4001`.
+Tests run against an emulator of the amplifier (`tests/emulator.py`) over a local TCP socket. You can also run it standalone (`python -m tests.emulator 4001`) and point a dev Home Assistant instance at `socket://127.0.0.1:4001` (add `--telnet` to serve it as a telnet server for `telnet://127.0.0.1:4001`).
 
 Optional tests against real hardware (low-risk, reversible changes only; volume is never raised above its starting level):
 
